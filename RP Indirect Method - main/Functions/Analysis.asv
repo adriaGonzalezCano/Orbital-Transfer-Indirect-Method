@@ -1,0 +1,55 @@
+%% Other Functions - Trajectory Analysis
+function [DV_total, Time] = Analysis(yout_opt, YP_opt, pData)
+    % Define Constants
+    mu_Sun = 1.327 * 10^(11); % km^3*s^-2
+    AU = 149597871; % km
+    alpha_v = 5.6724;
+    
+    % Delta V Analysis
+    DV = zeros(pData.N_arcs, 1);
+    
+    for i = 1:2:pData.N_arcs % Iterate through burn arcs
+        u_0 = yout_opt{i}(3, 1);
+        u_f = yout_opt{i}(3, end);
+        Delta_u = abs(u_f - u_0);
+
+        v_0 = yout_opt{i}(4, 1);
+        v_f = yout_opt{i}(4, end);
+        Delta_v = abs(v_f - v_0);
+
+        DV(i) = sqrt(Delta_u^2 + Delta_v^2);
+    end
+    
+    DV_total = sum(DV);
+    
+    fprintf('Total Delta V of the transfer: %.4f adimensional speed units, %.4f km/s \n' ...
+        , DV_total, DV_total*alpha_v);
+    
+    % Time Analysis
+    T_Earth = 2*pi*sqrt(AU^3/mu_Sun);
+    alpha_t = T_Earth/(2*pi);
+    
+    arcs_duration = zeros(1, pData.N_arcs);
+    for i = 1:pData.N_arcs
+        arcs_duration(i) = YP_opt(i)*alpha_t;
+    end
+    
+    t_span = sum(arcs_duration);
+    t_span_adimensional = sum(YP_opt(1:pData.N_arcs));
+    Time = zeros (4, 1);
+    
+    % Convert seconds to days, hours, minutes, and seconds
+    Time(1) = floor(t_span / (24 * 3600)); % days
+    remainingSec = t_span - Time(1) * 24 * 3600;
+        
+    Time(2) = floor(remainingSec / 3600); % hours
+    remainingSec = remainingSec - Time(2) * 3600;
+        
+    Time(3) = floor(remainingSec / 60); % minutes
+    Time(4) = remainingSec - Time(3) * 60; % seconds
+    
+    fprintf('Adimensional transfer duration: %.5f adimensional time units\n', ...
+        t_span_adimensional);
+    fprintf('Total transfer duration: %.0f days, %.0f hours, %.0f minutes and %.0f sec\n', ...
+        Time(1), Time(2), Time(3), Time(4));
+end

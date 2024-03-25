@@ -1,0 +1,100 @@
+%% Planar Planetary Transfer Problem
+clear all
+clc
+
+%% Include 
+addpath('Functions')
+
+%% Constants Definition
+% Dynamics parameters
+pData.mu = 1;
+% Q = 2; % Fuel flux 
+% Q = 1;
+% C = 0.3;
+% Tmax = C*Q; % Maximum thrust
+pData.C = 1; % Specific gas velocity
+pData.Tmax = 0.01;
+
+% Optimization parameters
+pData.eps = 1e-05; % Epsilon value for finite differences
+pData.Jmax = 1000000; % Maximum number of optimization iterations
+pData.tol = 1e-06; % Convergence limit for error
+pData.nSteps = 100; % Number of steps used in the integration
+pData.Rmin = 1e-03; % Rmin used for convergence
+pData.Pbis = 2; % Bisection method
+pData.dt = 1e-4;
+
+% Initialize problem dimensions
+pData.NY = 9; % Number of differential equations
+pData.N_arcs = 3; % Number of arcs;
+pData.IC = 4; % Initial unknown conditions
+pData.KP = pData.N_arcs + 1; % Unknown parameters (tau, lambda_theta0)
+pData.K = pData.IC + pData.KP; % Scalar Unknowns (parameters + initial unknown conditions
+
+% Transfer parameters
+% rf_des = 1.523679; % Mars Desired final radius
+pData.rf_des = 1.5;
+pData.vf_des = sqrt(1/pData.rf_des); % Desired final velocity
+
+%% Problem initialization
+% Define Initial Guess YP
+YP = [0.080428973;      % tau_1; 
+      4.50349;          % tau_2
+      0.061988321;      % tau_3
+      1.6380481;        % l_r; 
+      0;                % l_theta; 
+      -0.00011803349;   % l_u;
+      2.6666671;        % l_v;
+      1];               % l_m
+
+if length(YP) ~= pData.K
+    error('Error: Length of YP must be equal to K');
+end
+
+%% OPTIMIZATION
+[YP_opt, ER_data, yout_opt, tout_opt, iter] = OPTIMIZATION(YP, pData);
+
+%% TRAJECTORY ANALYSIS
+mu_Sun = 1.327 * 10^(11); % km^3*s^-2
+AU = 149597871; % km
+alpha_v = sqrt(mu_Sun/AU^2);
+
+% Delta V analysis
+DV = zeros(mod(N_arcs, 2));
+
+for i = 1:mod(N_arcsm, 2)
+    V_i = sqrt(yout_opt{i}(3, 1)^2 + yout_opt{i}(4, 1)^2);
+    V_f = sqrt(yout_opt{i}(3, end)^2 + yout_opt{i}(4, end)^2);
+    DV(i) = abs(V_f - V_i);
+end
+
+DV_total = sum(DV)*alpha_v;
+
+fprintf('Total Delta V of the transfer: %10.4f', DV_total);
+
+% Time analysis
+T_Earth = 2*pi*sqrt(AU^3/mu_Sun);
+alpha_t = T_Earth/(2*pi);
+
+arcs_duration = zeros(1, N_arcs);
+for i = 1:N_arcs
+    arcs_duration(i) = YP(i)*alpha_t;
+end
+
+t_span = sum(arcs_duration);
+
+% Convert seconds to days, hours, minutes, and seconds
+t_days = floor(t_span / (24 * 3600));
+remainingSec = t_span - t_days * 24 * 3600;
+    
+t_hours = floor(remainingSec / 3600);
+remainingSec = remainingSec - t_hours * 3600;
+    
+t_min = floor(remainingSec / 60);
+t_sec = remainingSec - t_min * 60;
+
+fprintf('Total transfer duration: %10.0f days, %10.0f hours, %10.0f minutes and %10.0f sec', ...
+    t_days, t_hours, t_min, seconds(t_span));
+
+%% DISPLAY RESULTS
+Display(ER_data, YP_opt, yout_opt, tout_opt, iter, pData);
